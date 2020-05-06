@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+resnet/runscripts/TFrecord_files/dm_test_1src_HeExpAll_Grid2601_ch1_normalized.tfrecords
+
+resnet/runscripts/TFrecord_files/dm_training_1src_HeExpAll_Grid2601_ch1_normalized.tfrecords
+
+resnet/runscripts/calc_out_ResNet_grid2601/
