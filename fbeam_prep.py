@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from pylab import array, deg2rad
-from numpy import sin, cos
+from numpy import sin, cos, array, deg2rad
 from acoular import MicGeom, SteeringVector, PowerSpectra, BeamformerEig
 from sphericalGrids import SphericalGrid_Equiangular
 from wavimport import WavSamples
@@ -58,7 +57,7 @@ def audio_csv_extraction(filepath, trackname, st, firstframe):
     # bo = BeamformerOrth(beamformer=be, eva_list=[3])
     
     csvdata = csv_extractor(CSV_DIR+trackname+".csv")
-    
+
     return ts, be, csvdata
 
 

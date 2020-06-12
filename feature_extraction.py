@@ -2,25 +2,40 @@
 # -*- coding: utf-8 -*-
 
 from os import scandir
+from parameter import AUDIO_DIR, FEATURE_DIR, JUST_1SOURCE_FRAMES
+from acoular import config
+from fbeam_prep import fbeampreparation, audio_csv_extraction
 from fbeam import fbeamextraction
-from parameter import AUDIO_DIR, FEATURE_DIR
-from tables import * # Für .h5-Export
-# from numpy import save,load,savez
+from tf_helpers import write_TFRecord
+from csv_reader import rm_2sources_frames
+import time
 
-# debug-Modus: Programm nutzt die Angabe von STARTFRAME & ENDFRAME (parameter.py),
-#              um den Bereich zu analysieren. Wenn =False -> ganze Datei(en)
+###########################################################################
+### Vor Ausführen   DEBUG,                                              ###
+###                 DETAILEDINFO_LVL,                                   ###
+###                 PLOTBEAMMAPS,                                       ###
+###                 AUDIO_ und FEATURE_DIR in "parameter.py" anpassen   ###
+###########################################################################
 
-# detailedinfo_lvl: 0 => keine Infos, nur aktueller Track
-#                   1 => + Framenummern
-#                   2 => + gerundetes Ergebnis aus allen Frames
-#                   3 => + Frame-Ergebnisse
+
+config.global_caching = "none" # "individual" #
+
+# rg = Gridobj.
+# st = SteeringVector
+mg, rg, st, firstframe, lastframe = fbeampreparation()
+
 
 with scandir(AUDIO_DIR) as files:
+    t1 = time.time()
     for file in files:
         print("##############################")
         print("#",file.name, "#")
         print("##############################")
-        feature_matrix = fbeamextraction(file.path, debug=False, detailedinfo_lvl=1, plotbeammaps=False)
-        #   h5file = open_file('fold1_room2_mix002_ov1.h5', mode='w', title='Audio Data')
-        #   h5file.create_array('/', 'audio_features', obj=DL_Matrix,shape=DL_Matrix.shape)
-        #   h5file.close()
+        _name = file.name[:-4]
+        ts, be, csvdata = audio_csv_extraction(file.path, _name, st, firstframe)
+        if JUST_1SOURCE_FRAMES:
+            csvdata = rm_2sources_frames(csvdata)
+        feature_matrix_pipeline = fbeamextraction(mg, rg, ts, be, firstframe, lastframe, csvdata)
+        write_TFRecord(FEATURE_DIR+_name+".tfrecords",feature_matrix_pipeline,1) # write file (logs every written sample)
+    t2 = time.time()
+    print(t2-t1)

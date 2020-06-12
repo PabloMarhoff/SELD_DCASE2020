@@ -35,10 +35,11 @@ def write_TFRecord(fname: str, feature_pipeline, verbosity:int=100):
     """
 
     with tf.io.TFRecordWriter(fname) as writer:
-        for i,feature in enumerate(feature_pipeline): 
-            example = tf.train.Example(features=tf.train.Features(feature=feature))
+        for feature in feature_pipeline:
+            # wrap data as TF Features
+            data = tf.train.Features(feature=feature)
+            # wrap again as a TF Example
+            example = tf.train.Example(features=data)
             # Serialize to string and write on the file
             writer.write(example.SerializeToString())
-            if i % verbosity == 0:
-                print(f"wrote {i} features.")
         writer.close()

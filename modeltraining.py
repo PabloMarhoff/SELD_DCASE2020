@@ -1,37 +1,35 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Reduced Version of ResNetDfg.py. Adjusted to tensorflow version > 2.0
-For full migration: https://www.tensorflow.org/guide/migrate
 
-Created on Thu May 05 16:43:41 2020
-
-@author: kujawski
-
-"""
-
-import sys
 import os
-#import tensorflow as tf
+import sys
+from parameter import FEATURE_DIR, NPOINTS_AZI, NPOINTS_ELE, FREQBANDS
+import multiprocessing
 from time import time
 import shutil
 import numpy as np
-import multiprocessing
 import pandas as pd
 
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
 
+
+
+
 # import Tensorflow models
-sys.path.insert(0,os.path.join(os.path.dirname(__file__),'..',"tf_models"))
+sys.path.insert(0,os.path.join(os.path.dirname(__file__),"resnet","tf_models"))
 from adamsnn_CNN_models import LocalizationEstimationModelConstructor,\
 ResNetOfficial, TimeHistory
 # other imports 
+sys.path.insert(0,os.path.join(os.path.dirname(__file__),"resnet","runscripts"))
 from folder_structure import create_session_folders
 ### decorator function
-sys.path.insert(0,os.path.join(os.path.dirname(__file__),'..',"Dataset_Reader"))
+sys.path.insert(0,os.path.join(os.path.dirname(__file__),"resnet","Dataset_Reader"))
 from dataset_decorators import tensorflow_input_fn
 
+
+
+#%% TODO
 # =============================================================================
 # parameters
 # =============================================================================
@@ -49,56 +47,69 @@ TESTSTEPS = None #None
 
 # Model Params
 SEED = 10 # random seed 
-INGRIDSIZE = 51*51 # size of the input image (source map)
-NXSTEPS = NYSTEPS = 51
+INGRIDSIZE = NPOINTS_AZI*NPOINTS_ELE # size of the input image (source map)
+NXSTEPS = NPOINTS_AZI
+NYSTEPS = NPOINTS_ELE
 AVAILABLE_CPUs = multiprocessing.cpu_count() # number of CPUs used for efficient input pipeline
 
 # datasets
-TRAINRECORD = [f'TFrecord_files/dm_training_1src_HeExpAll_Grid{INGRIDSIZE}_ch1_normalized.tfrecords']  
-TESTRECORD = [f'TFrecord_files/dm_test_1src_HeExpAll_Grid{INGRIDSIZE}_ch1_normalized.tfrecords']  
-
+TRAINRECORD = FEATURE_DIR # Trennung der 3,4,5,6
+TESTRECORD = FEATURE_DIR  # Datensätze   1,2
 # folder structure: creates a session folder including folder is with saved model  
 CALCDIR,SESSIONDIR,BESTDIR = create_session_folders(os.path.split(__file__)[0],
                                    "ResNet_grid{}".format(INGRIDSIZE),
                                    'task',task)
 log_folder = os.path.split(SESSIONDIR)[-1]
 
+
+#%% PARSER der Inputdaten aus den .tfrecord-Dateien
+
 # =============================================================================
 # Input Pipeline
 # =============================================================================
 
+# TODO: map_func mit create_input_fn (aus dataset_decorators.py) umschließen?!?
 # input function
 def create_input_fn(TFrecord_filenames, batch_size, shuffle, seed=None):
     @tensorflow_input_fn(TFrecord_filenames, batch_size, shuffle, seed=SEED, parallel_calls = AVAILABLE_CPUs)
-    def parser(record):
-        keys_to_features = {'dirtymap': tf.VarLenFeature(tf.float32),
-            'p2': tf.FixedLenFeature((), tf.float32),
-            'coordinates' : tf.VarLenFeature(tf.float32)}
-        
-        
-        parsed = tf.parse_single_example(record, keys_to_features)
-    
+    def map_func(record):
+        feature_description = {
+            'inputmap': tf.io.VarLenFeature(tf.float32),
+            'class': tf.io.FixedLenFeature([], tf.int64),
+            # 'class_2': ...
+            'azi':   tf.io.FixedLenFeature([], tf.int64),
+            # 'azi_2': ...
+            'ele':   tf.io.FixedLenFeature([], tf.int64),
+            # 'ele_2': ...
+            }
+        # Parse the input tf.Example proto using the dictionary above.
+        parsed = tf.io.parse_single_example(record, feature_description)
         # Perform additional preprocessing on the parsed data.
-        dm = tf.reshape(tf.sparse_tensor_to_dense(parsed['dirtymap']),[NXSTEPS,NYSTEPS,1]) # maybe direct from byte string map
-        coordinates = tf.reshape(tf.sparse_tensor_to_dense(parsed['coordinates']),[2,1])
-        p2 = tf.reshape(parsed["p2"],[1,1])
-        return {"features": dm}, {"labels": tf.squeeze(tf.concat([coordinates,p2],0)), 
-               'coordinates': tf.squeeze(coordinates),
-               'p2':tf.squeeze(p2)}
-    return parser
+        # reshape the inputmap again after parsing the list of floats
+        inputmap = tf.reshape(tf.sparse.to_dense(parsed['inputmap']),[NPOINTS_ELE, NPOINTS_AZI, len(FREQBANDS)])
+        inputclass = parsed['class']
+        azi = parsed['azi'] # TODO in Radiant umrechnen, dann auf Wert zwischen 0..1
+        ele = parsed['ele'] # TODO same
+        # returns {features}, {labels} as tuple! Inputclass entfernt
+        return {"features": inputmap}, {"labels":tf.stack([azi,ele],0),
+                                        'azi':azi,
+                                        'ele':ele}
+    return map_func
 
+#%% TODO: output_shape & output_fc_nodes
 # =============================================================================
 # Model
 # =============================================================================
 
 time_hist = TimeHistory()
 
+
 ResNet = ResNetOfficial(numhiddenlayers=0,
                         average_pooling=True,
                         inputgridsize=INGRIDSIZE,
                         random_seed = SEED,
-        output_shape = {'1': [-1,3]}, 
-          output_fc_nodes = {'1':3})
+        output_shape = {'1': [-1,2]}, 
+          output_fc_nodes = {'1':2})
                           
 opt = tf.train.AdamOptimizer(LRATE)
 #opt = tf.train.SyncReplicasOptimizer(opt, replicas_to_aggregate=len(cluster['worker']),
@@ -124,7 +135,9 @@ config = tf.estimator.RunConfig(model_dir=SESSIONDIR,
                                 )
 # Create the Estimator
 estimator = tf.estimator.Estimator(config=config,model_fn=pnn.model_func,model_dir=SESSIONDIR)
-   
+
+#%%
+
 # =============================================================================
 #Training
 # =============================================================================
@@ -132,12 +145,16 @@ t = time()
 losses = []
 gs = []
 
-# Input Funcs  
-training_input_fn = create_input_fn(TRAINRECORD, BATCHSIZE, shuffle=True,seed=SEED)
-test_input_fn = create_input_fn(TESTRECORD, BATCHSIZE, shuffle=False)
+# Input Funcs
+testfile = ['/home/pablo/Dokumente/Uni/Bachelorarbeit/SELD_DCASE2020/extracted_features/fold1_room1_mix001_ov1.tfrecords']
+#testdataset = 
+training_input_fn = create_input_fn(testfile, BATCHSIZE, shuffle=True,seed=SEED)# TRAINRECORD, BATCHSIZE, shuffle=True,seed=SEED)
+print("TRAINING: ", training_input_fn)
+test_input_fn = create_input_fn(testfile, BATCHSIZE, shuffle=False)#TESTRECORD, BATCHSIZE, shuffle=False)
+print("TEST: ", test_input_fn)
 
 for _ in range(EPOCHS):
-    estimator.train(input_fn=training_input_fn,steps=ITERATIONS,hooks=[time_hist])  
+    estimator.train(input_fn=training_input_fn,steps=ITERATIONS,hooks=[time_hist])
     test_results = estimator.evaluate(input_fn=test_input_fn, steps=TESTSTEPS)   
     losses.append(test_results['loss'])
     gs.append(test_results['global_step'])
@@ -177,3 +194,13 @@ for _ in range(EPOCHS):
 ##    df.to_csv(SESSIONDIR + r'/test_results.csv',sep='\t', encoding='utf-8')
 
 
+#%% TESTFUNKTION für Parser
+with os.scandir(FEATURE_DIR) as files:
+    for file in files:
+        raw_dataset = tf.data.TFRecordDataset(file.path)
+        dataset = raw_dataset.map(map_func)
+        # beispielshalber alle Frames durchgehen
+        for i,(features,labels) in enumerate(dataset):
+            if file.name == 'fold1_room2_mix026_ov2.tfrecords':
+                #print (i, labels['azi'].numpy(), labels['ele'].numpy())
+                pass
