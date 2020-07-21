@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from numpy import sin, cos, array, deg2rad
-from acoular import MicGeom, SteeringVector, PowerSpectra, BeamformerEig
+from numpy import sin, cos, array, deg2rad, zeros
+from acoular import MicGeom, SteeringVector, PowerSpectra, BeamformerEig, L_p
 from sphericalGrids import SphericalGrid_Equiangular
 from wavimport import WavSamples
 from csv_reader import csv_extractor
 from parameter import NPOINTS_AZI, NPOINTS_ELE, DEBUG, DETAILEDINFO_LVL,\
-    STARTFRAME, ENDFRAME, NUM, CSV_DIR
+    STARTFRAME, ENDFRAME, NUM, CSV_DIR, TRAINING, THRESHOLD
 
 #%% EIN MAL zu Beginn des Programms
 def fbeampreparation():
@@ -56,7 +56,31 @@ def audio_csv_extraction(filepath, trackname, st, firstframe):
     # bb = BeamformerBase(freq_data=ps, steer=st)
     # bo = BeamformerOrth(beamformer=be, eva_list=[3])
     
-    csvdata = csv_extractor(CSV_DIR+trackname+".csv")
+    if TRAINING:
+        csvdata = csv_extractor(CSV_DIR+trackname+".csv")
+
+# Wenn PREDICTION, dann existiert csv-Datei nicht
+# --> aus WAV-Datei auslesen, in welchen Frames Energie groß genug
+    else:
+        soundpressure = zeros(600)
+        
+        wavsamples = WavSamples(name = filepath).data[:,3]
+        for frameindex, _ in enumerate(soundpressure):
+            soundpressure[frameindex] = sum(wavsamples[frameindex*NUM:(frameindex+1)*NUM]**2)/NUM
+        spl = L_p(soundpressure)
+
+#####################
+# TODO Funktion die Threshold setzt und das gefilterte Array ("CSVDATA") zurück gibt
+        # active_frames = active_frames_filter(soundpressure)
+
+# solange nicht fertig, einfach abs. Threshold benutzen:
+        active_frames = []
+        for framenumber, frame in enumerate(spl):
+            if frame > THRESHOLD:
+                active_frames.append(framenumber)
+#####################
+        csvdata = array(active_frames).reshape((len(active_frames),1))
+
 
     return ts, be, csvdata
 

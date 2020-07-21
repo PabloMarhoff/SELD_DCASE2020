@@ -240,25 +240,52 @@ class LocalizationEstimationModelConstructor(ProcessNeuralNetwork):
                 desc = "maps output key to target key for loss calculation")
     
     ### need a weighting parameter for different loss values ####
-
-    metric_funcs = Dict({'distance_error': False,
+# TODO Ele und Azi hinzufügen
+    metric_funcs = Dict({'azi_error': True,
+                         'ele_error': True,
+                         'distance_error': False,
                          'source_level_error': False,
-                          'localization_accuracy': False},
+                         'localization_accuracy': False},
                         desc='additional functions for evaluation at training and testphase of network')
 
-
+# TODO ähnlich wie distance_error
     def _get_metrics(self, labels, predictions):
         eval_metric_ops = dict()
         #metrics:
+        if self.metric_funcs['azi_error']:
+            # Betrag der Differenzen vom Sinus und Kosinus
+            abs_sin = tf.math.abs(labels['azi_sin']-predictions['1'][:,0])
+            abs_cos = tf.math.abs(labels['azi_cos']-predictions['1'][:,1])
+            dist_error = tf.math.atan2(abs_sin,abs_cos)
+            
+            # hier falsch, da Daten schon normiert sind
+            # dist_error = tf.linalg.norm(dist_error)
+            
+            mean_dist_error = tf.reduce_mean(dist_error)
+            # fügt azi_error ins Dict "eval_metrics_ops" hinzu
+            eval_metric_ops["azi_error"] = tf.metrics.mean(mean_dist_error) 
+            # Visualisierung in TensorBoard
+            tf.summary.scalar('azi_error',mean_dist_error)
+
+        if self.metric_funcs['ele_error']:
+            # dist_error = tf.linalg.norm(tf.math.atan2(labels['ele_sin'],labels['ele_cos'])-tf.math.atan2(predictions['1'][:,2],predictions['1'][:,3]),axis=0)
+            dist_error = tf.math.abs(tf.math.atan2(labels['ele_sin'],labels['ele_cos'])-tf.math.atan2(predictions['1'][:,2],predictions['1'][:,3]))
+            mean_dist_error = tf.reduce_mean(dist_error)
+            eval_metric_ops["ele_error"] = tf.metrics.mean(mean_dist_error) 
+            tf.summary.scalar('ele_error',mean_dist_error)
+
+
         if self.metric_funcs['distance_error']:
             dist_error = tf.linalg.norm(labels['coordinates']-predictions['1'][:,:2],axis=1)
             mean_dist_error = tf.reduce_mean(dist_error)
             eval_metric_ops["distance_error"] = tf.metrics.mean(mean_dist_error) 
             tf.summary.scalar('distance_error',mean_dist_error)
+
         if self.metric_funcs['localization_accuracy']:
             loc_acc = localization_accuracy(labels['coordinates'], predictions['2'], d=self.localization_accuracy_radius)
             eval_metric_ops["localization_accuracy"] = tf.metrics.mean(loc_acc)             
             tf.summary.scalar('localization_accuracy',tf.metrics.mean(loc_acc)[1])
+
         if self.metric_funcs['source_level_error']:
             source_lev_error = source_level_error(labels['p2'], predictions['1'][:,2])
             mean_source_lev_error = tf.reduce_mean(source_lev_error)
@@ -307,7 +334,7 @@ class LocalizationEstimationModelConstructor(ProcessNeuralNetwork):
 #                out[op] = tf.get_default_graph().get_tensor_by_name(op+':0')            
             return tf.estimator.EstimatorSpec(mode=mode, 
                                               predictions=out,
-                      export_outputs={'prediction': tf.estimator.export.PredictOutput(out)})
+                                              export_outputs={'prediction': tf.estimator.export.PredictOutput(out)})
 
         eval_metric_ops = self._get_metrics(labels, out) 
 

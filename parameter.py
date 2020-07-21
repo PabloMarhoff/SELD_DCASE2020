@@ -2,9 +2,26 @@
 # -*- coding: utf-8 -*-
 
 AUDIO_DIR = "audio_csv_files/mic_dev/"
+AUDIO_DIR1 = "audio_csv_files/mic_dev_1/"
+AUDIO_DIR2 = "audio_csv_files/mic_dev_2/"
+AUDIO_DIR3 = "audio_csv_files/mic_dev_3/"
+AUDIO_DIR4 = "audio_csv_files/mic_dev_4/"
 CSV_DIR = "audio_csv_files/metadata_dev/"
+PLOTFILES = "plotfiles/"
+
+AUDIO_TEST = "audio_csv_files/audio_test/"
+SINGLE_FILE_TEST = "audio_csv_files/single_file_test"
+
 # Externe Festplatte
 FEATURE_DIR = "extracted_features/" # "/media/pablo/Elements/DCASE/Extracted_Features/"
+
+#########################
+# Optionen für KNN
+FEATURE_DIR_TRAINING_SPLIT = "extracted_features/training/"
+FEATURE_DIR_TESTING_SPLIT = "extracted_features/testing/"
+TRAINING = False
+#########################
+
 
 #########################
 # DEBUG-Modus: --> Programm nutzt die Angabe von STARTFRAME & ENDFRAME, um den
@@ -13,12 +30,14 @@ FEATURE_DIR = "extracted_features/" # "/media/pablo/Elements/DCASE/Extracted_Fea
 #              --> Wertebereich = [0,600]    1 Frame entspricht 100 ms
 DEBUG = False
 
-STARTFRAME = 42
-ENDFRAME = 48 # ENDFRAME selber nicht mehr enthalten
+STARTFRAME = 510
+ENDFRAME = 533 # ENDFRAME selber nicht mehr enthalten
 #########################
 
 
 JUST_1SOURCE_FRAMES = True
+
+THRESHOLD = 60 # 55
 
 
 
@@ -26,7 +45,7 @@ JUST_1SOURCE_FRAMES = True
 #                   1 => + Framenummern
 #                   2 => + .csv-Werte des aktuellen Frames
 #                   3 => + Frame-Ergebnisse
-DETAILEDINFO_LVL = 2
+DETAILEDINFO_LVL = 1
 
 # PLOTBEAMMAPS: Plottet 3D- und 2D-Ansicht des Frames. ACHTUNG: deutlich langsamer
 PLOTBEAMMAPS = False

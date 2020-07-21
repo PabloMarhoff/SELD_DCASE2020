@@ -53,8 +53,14 @@ class SphericalGrid_Equiangular( Grid ):
     def _get_shape( self ):
         return (self._npoints_azi, self._npoints_ele)
 
+
 #    @cached_property
     def _get_phi( self ):
+        '''
+        Gibt NPOINTS_AZI(=Anzahl), gleichmäßig verteilte Azimuth-Gitterpunkte
+        zurück.
+        Intervall: [-pi, +pi]
+        '''
         indices = arange(0, self._npoints_azi, dtype=float) + 0.5
         phi = repeat((2*pi * (indices / self._npoints_azi)) - pi, self._npoints_ele)
         return phi
