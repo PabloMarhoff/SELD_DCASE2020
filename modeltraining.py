@@ -64,7 +64,8 @@ CALCDIR,SESSIONDIR,BESTDIR = create_session_folders(split(__file__)[0],
 log_folder = split(SESSIONDIR)[-1]
 
 CKPT = "/home/pablo/Dokumente/Uni/Bachelorarbeit/SELD_DCASE2020/calc_out_ResNet_grid2450/16_16_58_best_model/best_results/model.ckpt-300000"
-
+#CKPT = "/home/pablo/Dokumente/Uni/Bachelorarbeit/SELD_DCASE2020/calc_out_ResNet_grid2450/17_35_07_best_model_thresholdfilter/best_results/model.ckpt-188000"
+#CKPT = "/home/pablo/Dokumente/Uni/Bachelorarbeit/SELD_DCASE2020/calc_out_ResNet_grid2450/20200825_Threshold_Ele/best_results/model.ckpt-296000"
 
 
 #%% PARSER der Inputdaten aus den .tfrecord-Dateien
@@ -225,28 +226,21 @@ if not(TRAINING):
             PREDRECORD = [file.path]
             # print(PREDRECORD)
             # create_input_fn(Dateiliste, Batchgröße, Inputframes mischen?)
-            prediction_input = create_input_fn(PREDRECORD, 600, shuffle=False)
+            prediction_input = create_input_fn(PREDRECORD, 1000, shuffle=False)
             prediction_generator = estimator.predict(input_fn=prediction_input, yield_single_examples=False,checkpoint_path = CKPT)
             npyfile = PLOTFILES+file.name[:-10]
             activeframes = load(npyfile+'_frames.npy')
             try:
-                yyy = next(prediction_generator)
-                yyy_winkel = [arctan2(yyy['1'][:,0],yyy['1'][:,1]), arctan2(yyy['1'][:,2], yyy['1'][:,3])]
-                yyy_winkel2 = zeros((yyy_winkel[0].size, 3))
-                yyy_winkel2[:,0] = activeframes[:,0]
-                yyy_winkel2[:,1] = yyy_winkel[0] * 180/pi
-                yyy_winkel2[:,2] = yyy_winkel[1] * 180/pi
-                save(npyfile+'_KNN.npy',yyy_winkel2)
+                pred = next(prediction_generator)
+                aziEle_rad = [arctan2(pred['1'][:,0],pred['1'][:,1]), arctan2(pred['1'][:,2], pred['1'][:,3])]
+                frAziEle_deg = zeros((aziEle_rad[0].size, 3))
+                #frAziEle_deg[:,0] = activeframes[:,0] weil Fehlermeldung "too many indices for array"
+                frAziEle_deg[:,0] = activeframes[:]
+                frAziEle_deg[:,1] = aziEle_rad[0] * 180/pi
+                frAziEle_deg[:,2] = aziEle_rad[1] * 180/pi
+                save(npyfile+'_KNN.npy',frAziEle_deg)
                 # remove(npyfile+'_frames.npy')
             except StopIteration:
                 pass
 
     
-
-
-##            
-##    tr = {'global_step': global_steps, 'loss':losses, 'distance_error': distance_error, 
-##          'localization_accuracy': accuracy, 'source_level_error':level_error}
-##    df = pandas.DataFrame.from_dict(tr)  
-##    df.to_csv(SESSIONDIR + r'/test_results.csv',sep='\t', encoding='utf-8')
-

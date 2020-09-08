@@ -17,13 +17,21 @@ activeframes = np.array([])
 very_quiet_sound = 0
 loud_silence = 0
 
+# ACHTUNG: threshold-Funktion für feature_extraction in fbeam_prep.py!!
+def threshold_calculator(spl):
+    spl_temp = np.sort(spl)
+    threshold = np.mean(spl_temp[0:20])+8
+    #threshold2 = 0 np.mean(spl_temp[0:3])+10
+    return threshold#, threshold2
+
+
 
 with scandir(SINGLE_FILE_TEST) as files:
     for index, wavfile in enumerate(files):
         # zugehörige .csv-Datei, um aktive Frames zu plotten
         _name = wavfile.name[:-4]
         csvfile = CSV_DIR+_name+'.csv'
-        csv_data = np.loadtxt(open(csvfile, "rb"), dtype="int32", delimiter=",", usecols=(0))
+        csv_frames = np.loadtxt(open(csvfile, "rb"), dtype="int32", delimiter=",", usecols=(0))
 
         ts = WavSamples(name = wavfile.path).data[:,3]
         print(wavfile.name)
@@ -32,13 +40,15 @@ with scandir(SINGLE_FILE_TEST) as files:
         frames = np.linspace(0, len(ts)/NUM, num=int(len(ts)/NUM))
         
         spl = L_p(soundpressure)
-
-
+        
         fig1 = plt.subplot(211)
-        fig1.axhline(55)
+        
+        threshold = threshold_calculator(spl)
+        fig1.axhline(threshold)
+        #fig1.axhline(threshold2, c='r')
         plt.plot(frames, spl)
         plt.setp(fig1.get_xticklabels()) #, visible=False)
-        plt.title(wavfile.name)
+        plt.title(wavfile.name + " 0:20 " + str(threshold))
 
         fig2 = plt.subplot(212)
         fig2.axhline(0.04)
@@ -47,35 +57,24 @@ with scandir(SINGLE_FILE_TEST) as files:
         # AKTIVE Frames: Plot bekommt Hintergrundfarbe
         # INAKTIVE Frames: Speichern der Energie des Frames zur Berechnung des Thresholds
         for frame in np.arange(600):
-            if frame in csv_data:
+            if frame in csv_frames:
                 fig1.axvspan(frame, frame+1, facecolor='g', alpha=0.5)
                 fig2.axvspan(frame, frame+1, facecolor='g', alpha=0.5)
-                activeframes = np.append(activeframes, soundpressure[frame])
-                if soundpressure[frame] < 0.000034:
-                    very_quiet_sound += 1
+                activeframes = np.append(activeframes, spl[frame])
             else:
-                inactiveframes = np.append(inactiveframes, soundpressure[frame])
-                if soundpressure[frame] > 0.000034:
-                    loud_silence += 1
+                inactiveframes = np.append(inactiveframes, spl[frame])
         plt.show()
 
-print("Quiet Frames (Threshold to high) but with active Source = ", very_quiet_sound)
-print("Loud Frames (Threshold to low) without active Source = ", loud_silence)
-threshold = np.mean(inactiveframes)
-print(threshold)
-maxval = np.max(inactiveframes)
-print(maxval)
+# threshold = np.mean(inactiveframes)
+# print(threshold)
+# maxval = np.max(inactiveframes)
+# print(maxval)
 
-print(np.min(activeframes))
-print(np.mean(activeframes))
+# print(np.min(activeframes))
+# print(np.mean(activeframes))
 
 
-# histo = plt.hist(inactiveframes, bins='auto')  # arguments are passed to np.histogram
-# plt.title("Histogram of inactive Frames")
-# plt.xlim(xmax=0.001, xmin=0.0)
-# plt.ylim(ymax=5000)
-# # plt.yscale('log')
-# plt.show()
+
 
 
 

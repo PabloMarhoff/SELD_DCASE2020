@@ -2,13 +2,13 @@
 # -*- coding: utf-8 -*-
 
 from os import scandir, path, remove
-from parameter import AUDIO_DIR, FEATURE_DIR, SINGLE_FILE_TEST,\
-    JUST_1SOURCE_FRAMES, TRAINING, PLOTFILES
+from parameter import AUDIO_DIR, FEATURE_DIR, FEATURE_DIR_TESTING_SPLIT,\
+    SINGLE_FILE_TEST, JUST_1SOURCE_FRAMES, TRAINING, PLOTFILES, AUDIO_TEST,\
+    DEBUG, THRESHOLD_FILTER
 from acoular import config, h5cache
 from fbeam_prep import fbeampreparation, audio_csv_extraction
 from fbeam import fbeamextraction
 from tf_helpers import write_TFRecord
-from csv_reader import rm_2sources_frames
 import time
 from numpy import save, load
 
@@ -19,7 +19,7 @@ from numpy import save, load
 ###                 AUDIO_ und FEATURE_DIR in "parameter.py" anpassen   ###
 ###########################################################################
 
-h5cache.cache_dir = path.join(path.curdir,'cache') # '/media/pablo/Elements/DCASE/Cache' #
+h5cache.cache_dir = path.join(path.curdir,'cache') # '/media/pablo/Elements/DCASE/Cache' # 
 config.global_caching = "individual" # "none" # 
 
 # rg = Gridobj.
@@ -35,23 +35,30 @@ with scandir(SINGLE_FILE_TEST) as files:
         print("#",wavfile.name, "#")
         print("##############################")
         _name = wavfile.name[:-4]
-        ts, be, csvdata = audio_csv_extraction(wavfile.path, _name, st, firstframe)
-
-        if JUST_1SOURCE_FRAMES and TRAINING:
-            csvdata = rm_2sources_frames(csvdata)
+        
+        # incl. "Threshold-Filtern" & "entfernen von Frames mit 2 Quellen"
+        ts, be, labeldata = audio_csv_extraction(wavfile.path, _name, st, firstframe)
 
         # Hier Array mit allen aktiven, GEFILTERTEN Frames für Ergebnisse des KNN vorspeichern
         if not(TRAINING):
             with open(PLOTFILES+_name+'_frames.npy', mode='wb') as npyfile:
-                save(npyfile, csvdata)
+                save(npyfile, labeldata[:,0])
         # fbeamplot enthält alle durch Beamforming bestimmten Richtungen
         fbeamplot = []
+        fbeamplot_2ndSrc = []
         feature_matrix_pipeline = fbeamextraction(mg, rg, ts, be,
                                                   firstframe, lastframe,
-                                                  csvdata, _name, fbeamplot)
-        write_TFRecord(FEATURE_DIR+_name+".tfrecords",feature_matrix_pipeline,1) # write file (logs every written sample)
+                                                  labeldata, _name,
+                                                  fbeamplot, fbeamplot_2ndSrc)
+        if TRAINING:
+            write_TFRecord(FEATURE_DIR+_name+".tfrecords",feature_matrix_pipeline,1) # write file (logs every written sample)
+        if not(TRAINING):
+            write_TFRecord(FEATURE_DIR_TESTING_SPLIT+_name+".tfrecords",feature_matrix_pipeline,1)
         
-        save(PLOTFILES+_name+"_beam.npy", fbeamplot)
+        if not(DEBUG) and not(TRAINING):
+            save(PLOTFILES+_name+"_beam.npy", fbeamplot)
+            if fbeamplot_2ndSrc != []:
+                save(PLOTFILES+_name+"_beam2nd.npy", fbeamplot_2ndSrc)
         if path.exists(h5cache.cache_dir+"/"+_name+"_cache.h5"):
             remove(h5cache.cache_dir+"/"+_name+"_cache.h5")
     t2 = time.time()

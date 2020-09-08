@@ -269,7 +269,10 @@ class LocalizationEstimationModelConstructor(ProcessNeuralNetwork):
 
         if self.metric_funcs['ele_error']:
             # dist_error = tf.linalg.norm(tf.math.atan2(labels['ele_sin'],labels['ele_cos'])-tf.math.atan2(predictions['1'][:,2],predictions['1'][:,3]),axis=0)
-            dist_error = tf.math.abs(tf.math.atan2(labels['ele_sin'],labels['ele_cos'])-tf.math.atan2(predictions['1'][:,2],predictions['1'][:,3]))
+            abs_sin = tf.math.abs(labels['ele_sin']-predictions['1'][:,2])
+            abs_cos = tf.math.abs(labels['ele_cos']-predictions['1'][:,3])
+            dist_error = tf.math.atan2(abs_sin,abs_cos)
+#            dist_error = tf.math.abs(tf.math.atan2(labels['ele_sin'],labels['ele_cos'])-tf.math.atan2(predictions['1'][:,2],predictions['1'][:,3]))
             mean_dist_error = tf.reduce_mean(dist_error)
             eval_metric_ops["ele_error"] = tf.metrics.mean(mean_dist_error) 
             tf.summary.scalar('ele_error',mean_dist_error)

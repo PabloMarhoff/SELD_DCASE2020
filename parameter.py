@@ -28,16 +28,15 @@ TRAINING = False
 #                  Bereich zu analysieren.
 #              --> Wenn =False -> ganze Datei(en)
 #              --> Wertebereich = [0,600]    1 Frame entspricht 100 ms
-DEBUG = False
+DEBUG = True
 
-STARTFRAME = 510
-ENDFRAME = 533 # ENDFRAME selber nicht mehr enthalten
+STARTFRAME = 275
+ENDFRAME = 276 # ENDFRAME selber nicht mehr enthalten
 #########################
 
 
-JUST_1SOURCE_FRAMES = True
-
-THRESHOLD = 60 # 55
+JUST_1SOURCE_FRAMES = False
+THRESHOLD_FILTER = True
 
 
 
@@ -45,10 +44,10 @@ THRESHOLD = 60 # 55
 #                   1 => + Framenummern
 #                   2 => + .csv-Werte des aktuellen Frames
 #                   3 => + Frame-Ergebnisse
-DETAILEDINFO_LVL = 1
+DETAILEDINFO_LVL = 3
 
 # PLOTBEAMMAPS: Plottet 3D- und 2D-Ansicht des Frames. ACHTUNG: deutlich langsamer
-PLOTBEAMMAPS = False
+PLOTBEAMMAPS = True
 
 
 
