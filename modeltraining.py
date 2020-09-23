@@ -3,7 +3,7 @@
 
 
 import sys
-from os import listdir, scandir, remove
+from os import listdir, scandir
 from os.path import isfile, join, dirname, split
 from parameter import FEATURE_DIR_TESTING_SPLIT, FEATURE_DIR_TRAINING_SPLIT,\
     NPOINTS_AZI, NPOINTS_ELE, FREQBANDS, TRAINING, PLOTFILES
@@ -63,9 +63,14 @@ CALCDIR,SESSIONDIR,BESTDIR = create_session_folders(split(__file__)[0],
                                    'task',task)
 log_folder = split(SESSIONDIR)[-1]
 
-CKPT = "/home/pablo/Dokumente/Uni/Bachelorarbeit/SELD_DCASE2020/calc_out_ResNet_grid2450/16_16_58_best_model/best_results/model.ckpt-300000"
+# Ohne Thresholdfilter
+#CKPT = "/home/pablo/Dokumente/Uni/Bachelorarbeit/SELD_DCASE2020/calc_out_ResNet_grid2450/16_16_58_best_model/best_results/model.ckpt-300000"
+
+# Mit Threshold, aber "falscher" Ele_Error-Formel
 #CKPT = "/home/pablo/Dokumente/Uni/Bachelorarbeit/SELD_DCASE2020/calc_out_ResNet_grid2450/17_35_07_best_model_thresholdfilter/best_results/model.ckpt-188000"
-#CKPT = "/home/pablo/Dokumente/Uni/Bachelorarbeit/SELD_DCASE2020/calc_out_ResNet_grid2450/20200825_Threshold_Ele/best_results/model.ckpt-296000"
+
+# Finales Training
+CKPT = "/home/pablo/Dokumente/Uni/Bachelorarbeit/SELD_DCASE2020/calc_out_ResNet_grid2450/20200825_Threshold_Ele/best_results/model.ckpt-296000"
 
 
 #%% PARSER der Inputdaten aus den .tfrecord-Dateien

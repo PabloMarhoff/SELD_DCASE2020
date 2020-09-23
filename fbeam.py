@@ -12,10 +12,16 @@ from tf_helpers import _float_list_feature, _int64_feature
 from mpl_toolkits.mplot3d import Axes3D
 
 
-# händische Berechnung von Azi&Ele der Quelle
+
+'''
+Händische Bestimmung via Algo von Azi&Ele der Quelle.
+1. (unabhängig von Intensität der einzelnen Freqbänder) Außreißer eliminieren
+2. Übrige Winkelwerte mitteln
+
 # IN: Maxima der Beamformingmaps für alle Freqs
 # OUT: Prediction für Azi&Ele (rad)
-def angle_calculation(azis,azic,eles,elec):
+'''
+def angle_calc_algo(azis,azic,eles,elec):
     # ohne die UNTERSTEN 3 FREQBÄNDER, weil diese stark abweichen
     azis = azis[3:]
     azic = azic[3:]
@@ -67,7 +73,7 @@ def angle_calculation(azis,azic,eles,elec):
 # fr_index = Position in csvdata
 # frame = Framenummer der Audiodatei
 # BEI PREDICTION: csvdata enthält Frame-Liste mit Frames energiereicher als Threshold
-def fbeamextraction(mg, rg, ts, be, firstframe, lastframe, csvdata, _name, fbeamplot, fbeamplot_2ndSrc):
+def fbeamextraction(mg, rg, ts, be, firstframe, lastframe, csvdata, _name, fbeamplot, fbeamplot_2ndSrc, algoplot, algoplot_2ndSrc):
 
     #####################  DeepLearning-Matrix (Framewise)  #########################
     ################    Elevation     Azimuth    Frequenzbänder   ###################
@@ -94,18 +100,22 @@ def fbeamextraction(mg, rg, ts, be, firstframe, lastframe, csvdata, _name, fbeam
                 elec_2nd = list(zeros(len(FREQBANDS)))
             
 #%%  1. Quelle  ##############################
-
+            # Zur Angle-Prediction ohne händischem Algo
+            glob_maxval = 0
+            glob_maxidx = 0
             for freq_index, freq in enumerate(FREQBANDS):
                 
-                ### NEUE VARIANTE (WEIL EIGENWERTE DER GRÖßE NACH SORTIERT)
-                be.n = -1 #Eigenwerte der Größe nach sortiert -> größter Eigenwert (default)
+                be.n = -1 #Eigenwerte sind der Größe nach sortiert! -> größter Eigenwert (default)
                 Lm = L_p(be.synthetic(freq, 3)).reshape(rg.shape).flatten()
                 
                 DL_Matrix[:,:,freq_index] = Lm.reshape(rg.shape).T
-    
+                
                 if PLOTBEAMMAPS or DETAILEDINFO_LVL>=3 or not(TRAINING):
                     max_idx = argmax(Lm.flatten()) # position in grid with max source strength
                     max_value = amax(Lm.flatten())
+                    if glob_maxval < max_value: # TODO: 'and freq != 500:' !?!
+                        glob_maxidx = max_idx
+                        glob_maxval = max_value
                     # min_value = amin(Lm.flatten())
     
                     max_cartcoord = rg.gpos[:,max_idx]
@@ -178,10 +188,14 @@ def fbeamextraction(mg, rg, ts, be, firstframe, lastframe, csvdata, _name, fbeam
                     'ele':   _int64_feature(csvdata[fr_index, 3]),
                     }
             if not(TRAINING):
-                azi_pred, ele_pred = angle_calculation(azis,azic,eles,elec)
-                # --> fbeamplot enthält (Azi,Ele)-Prediction für alle aktiven Frames
+                # Prediction nur übers globale Maximum
+                azi_pred = arctan2(sin(rg.phi[glob_maxidx]),cos(rg.phi[glob_maxidx]))
+                ele_pred = pi/2 - rg.theta[glob_maxidx]
                 fbeamplot.append([frame, rad2deg(azi_pred), rad2deg(ele_pred)])
-                
+
+                # Calculation per Algorithmus (basierend auf Ergebnissen des fbeamformings)
+                azi_algo, ele_algo = angle_calc_algo(azis,azic,eles,elec)
+                algoplot.append([frame, rad2deg(azi_algo), rad2deg(ele_algo)])
 
                 feature_dict = {
                     'inputmap': _float_list_feature(DL_Matrix)
@@ -195,6 +209,9 @@ def fbeamextraction(mg, rg, ts, be, firstframe, lastframe, csvdata, _name, fbeam
             if not(fr_index+1==len(csvdata)):
             
                 if not(JUST_1SOURCE_FRAMES or TRAINING) and (frame==csvdata[fr_index+1,0]):
+                    glob_maxval = 0
+                    glob_maxidx = 0
+                    
                     if DETAILEDINFO_LVL >= 1:
                         print('  FRAME: ', frame-firstframe, ' (',frame,'), 2nd Src')
     
@@ -207,6 +224,10 @@ def fbeamextraction(mg, rg, ts, be, firstframe, lastframe, csvdata, _name, fbeam
                         
                         max_idx = argmax(Lm.flatten()) # position in grid with max source strength
                         max_value = amax(Lm.flatten())
+                        if glob_maxval < max_value: # TODO: 'and freq != 500:' !?!
+                            glob_maxidx = max_idx
+                            glob_maxval = max_value
+                        
                         max_cartcoord = rg.gpos[:,max_idx]
                         
                         temp_azi = arctan2(sin(rg.phi[max_idx]),cos(rg.phi[max_idx]))
@@ -261,10 +282,16 @@ def fbeamextraction(mg, rg, ts, be, firstframe, lastframe, csvdata, _name, fbeam
                             #print('   ',freq, max_cartcoord, max_value)
         
             
-        
-                    azi_pred_2nd, ele_pred_2nd = angle_calculation(azis_2nd,azic_2nd,eles_2nd,elec_2nd)
+            
+                    # Prediction nur übers globale Maximum
+                    azi_pred_2nd = arctan2(sin(rg.phi[glob_maxidx]),cos(rg.phi[glob_maxidx]))
+                    ele_pred_2nd = pi/2 - rg.theta[glob_maxidx]
                     fbeamplot_2ndSrc.append([frame, rad2deg(azi_pred_2nd), rad2deg(ele_pred_2nd)])
-        
+
+                    # Calculation per Algorithmus (basierend auf Ergebnissen des fbeamformings)
+                    azi_algo_2nd, ele_algo_2nd = angle_calc_algo(azis_2nd,azic_2nd,eles_2nd,elec_2nd)
+                    algoplot_2ndSrc.append([frame, rad2deg(azi_algo_2nd), rad2deg(ele_algo_2nd)])
+                    
                     feature_dict = {
                         'inputmap': _float_list_feature(DL_Matrix)
                         }

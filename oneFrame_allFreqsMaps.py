@@ -98,16 +98,18 @@ for ind, ax in enumerate(axs.flat):
     ax.set_yticks(arange(-90,180, step=90))
     if ind % 2 == 0:
         cax1 = ax.imshow(Src1_Matrix[:,:,int(ind/2)], cmap=cmhot,
-                  vmin=maxval1[int(ind/2)]-6,
+                  vmin=maxval1[int(ind/2)]-10,
                   vmax=maxval1[int(ind/2)],
                   extent=[-180,180,-90,90])
         ax.plot(Src1_AziEle[0],Src1_AziEle[1], 'bx')
+        ax.plot(Src2_AziEle[0],Src2_AziEle[1], 'bx')
         fig.colorbar(cax1, ax=ax)
     if ind % 2 == 1:
         cax2 = ax.imshow(Src2_Matrix[:,:,int(ind/2-1)], cmap=cmhot,
-                  vmin=maxval2[int(ind/2-1)]-6,
+                  vmin=maxval2[int(ind/2-1)]-10,
                   vmax=maxval2[int(ind/2-1)],
                   extent=[-180,180,-90,90])
+        ax.plot(Src1_AziEle[0],Src1_AziEle[1], 'bx')
         ax.plot(Src2_AziEle[0],Src2_AziEle[1], 'bx')
         fig.colorbar(cax2, ax=ax)
 

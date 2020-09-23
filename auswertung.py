@@ -25,6 +25,44 @@ import matplotlib.pyplot as plt
 #   -> Predictions ohne KNN                 '_beam.npy'
 #   -> mittels Threshold gefilterte Frames  '_frames.npy'
 
+def smallest_LocError(ideal, real):
+    dist = zeros(len(ideal))
+    skipIt = False
+    try:
+        for i, frame in enumerate(ideal[:,0]):
+            if skipIt:
+                skipIt = False
+                continue
+            # Wenn in Frame 2 Quellen vorhanden:
+            # 1. beide Abstandskombis ausrechnen  i|i & i+1|i+1  bzw. i|i+1 & i+1|i
+            # 2. kleineren Fehler wählen
+            if frame == ideal[i+1,0]:
+                # nicht vertauscht
+                dist_a1 = sin(ideal[i,2]) * sin(real[i,2]) + cos(ideal[i,2]) * cos(real[i,2]) * cos(abs(ideal[i,1] - real[i,1]))
+                dist_a1 = arccos(dist_a1) * 180 / pi
+                dist_a2 = sin(ideal[i+1,2]) * sin(real[i+1,2]) + cos(ideal[i+1,2]) * cos(real[i+1,2]) * cos(abs(ideal[i+1,1] - real[i+1,1]))
+                dist_a2 = arccos(dist_a2) * 180 / pi
+                # vertauscht
+                dist_b1 = sin(ideal[i,2]) * sin(real[i+1,2]) + cos(ideal[i,2]) * cos(real[i+1,2]) * cos(abs(ideal[i,1] - real[i+1,1]))
+                dist_b1 = arccos(dist_b1) * 180 / pi
+                dist_b2 = sin(ideal[i+1,2]) * sin(real[i,2]) + cos(ideal[i+1,2]) * cos(real[i,2]) * cos(abs(ideal[i+1,1] - real[i,1]))
+                dist_b2 = arccos(dist_b2) * 180 / pi
+                if dist_a1+dist_a2 < dist_b1+dist_b2:
+                    dist[i] = dist_a1
+                    dist[i+1] = dist_a2
+                else:
+                    dist[i] = dist_b1
+                    dist[i+1] = dist_b2
+                skipIt = True
+            # Wenn nur 1 Quelle, einfach Abstand bestimmen
+            else:
+                dist[i] = sin(ideal[i,2]) * sin(real[i,2]) + cos(ideal[i,2]) * cos(real[i,2]) * cos(abs(ideal[i,1] - real[i,1]))
+                dist[i] = arccos(dist[i]) * 180 / pi
+    except IndexError:
+        pass
+    return dist
+
+
 def count_twoSrcFrames(csvdata, filteredFrames):
     tSF = 0
     for index, frame in enumerate(csvdata[:-1,0]):
@@ -37,6 +75,7 @@ def count_twoSrcFrames(csvdata, filteredFrames):
 
 knn_dist_list = []
 beam_dist_list = []
+algo_dist_list = []
 
 
 with scandir(SINGLE_FILE_TEST) as wavfiles:
@@ -97,10 +136,12 @@ with scandir(SINGLE_FILE_TEST) as wavfiles:
 
         save(PLOTFILES+_name+'_filterideal.npy', filterideal)
 
-        knn = load(PLOTFILES+_name+'_KNN.npy')
         beam = load(PLOTFILES+_name+'_beam.npy')
+        algo = load(PLOTFILES+_name+'_algo.npy')
+        knn = load(PLOTFILES+_name+'_KNN.npy')
         try:
             beam_2nd = load(PLOTFILES+_name+'_beam2nd.npy')
+            algo_2nd = load(PLOTFILES+_name+'_algo2nd.npy')
             twoSrc_frames_exist = True
         except FileNotFoundError:
             twoSrc_frames_exist = False
@@ -109,99 +150,115 @@ with scandir(SINGLE_FILE_TEST) as wavfiles:
             ideal_2SF = load(PLOTFILES+_name+'_ideal_2SF.npy')
         filterideal = load(PLOTFILES+_name+'_filterideal.npy')
         
-        fig, axs = plt.subplots(4, 2)
-        axs[0,0].plot(knn[:,0], knn[:,1], '.', ms=2)
-        axs[0,0].set_title('mit KNN (Azimuth)', fontsize=8)
-        axs[1,0].plot(beam[:,0], beam[:,1], '.', ms=2)
-        axs[1,0].set_title('ohne KNN (Azimuth)', fontsize=8)
-        axs[2,0].plot(ideal[:,0], ideal[:,1], '.', ms=2)
-        axs[2,0].set_title('ideal (Azimuth)', fontsize=8)
+        fig, axs = plt.subplots(5, 2)
+        #links oben
+        axs[0,0].plot(beam[:,0],beam[:,1], '.',ms=2)
+        axs[0,0].set_title('Nur globales Maximum (Azimuth)', fontsize=8)
+        axs[1,0].plot(algo[:,0], algo[:,1], '.', ms=2)
+        axs[1,0].set_title('Algorithmus (Azimuth)', fontsize=8)
+        axs[2,0].plot(knn[:,0], knn[:,1], '.', ms=2)
+        axs[2,0].set_title('Mit KNN (Azimuth)', fontsize=8)
         axs[3,0].plot(filterideal[:,0], filterideal[:,1], '.', ms=2)
-        axs[3,0].set_title('ideal, mit Threshold gefiltert (Azimuth)', fontsize=8)
-        axs[0,1].plot(knn[:,0], knn[:,2], '.', ms=2)
-        axs[0,1].set_title('mit KNN (Elevation)', fontsize=8)
-        axs[1,1].plot(beam[:,0], beam[:,2], '.', ms=2)
-        axs[1,1].set_title('ohne KNN (Elevation)', fontsize=8)
-        axs[2,1].plot(ideal[:,0], ideal[:,2], '.', ms=2)
-        axs[2,1].set_title('ideal (Elevation)', fontsize=8)
+        axs[3,0].set_title('Ideal, mit Threshold gefiltert (Azimuth)', fontsize=8)
+        #links unten
+        axs[4,0].plot(ideal[:,0], ideal[:,1], '.', ms=2)
+        axs[4,0].set_title('Ideal (Azimuth)', fontsize=8)
+
+        # rechts oben
+        axs[0,1].plot(beam[:,0],beam[:,2], '.',ms=2)
+        axs[0,1].set_title('Nur globales Maximum (Elevation)', fontsize=8)
+        axs[1,1].plot(algo[:,0], algo[:,2], '.', ms=2)
+        axs[1,1].set_title('Algorithmus (Elevation)', fontsize=8)
+        axs[2,1].plot(knn[:,0], knn[:,2], '.', ms=2)
+        axs[2,1].set_title('Mit KNN (Elevation)', fontsize=8)
         axs[3,1].plot(filterideal[:,0], filterideal[:,2], '.', ms=2)
-        axs[3,1].set_title('ideal, mit Threshold gefiltert (Elevation)', fontsize=8)
-        if twoSrc_frames_exist:
-            axs[1,0].plot(beam_2nd[:,0], beam_2nd[:,1], '.', ms=2, color='r')
-            axs[1,1].plot(beam_2nd[:,0], beam_2nd[:,2], '.', ms=2, color='r')
+        axs[3,1].set_title('Ideal, mit Threshold gefiltert (Elevation)', fontsize=8)
+        #rechts unten
+        axs[4,1].plot(ideal[:,0], ideal[:,2], '.', ms=2)
+        axs[4,1].set_title('Ideal (Elevation)', fontsize=8)
+
+        if twoSrc_frames_exist: # 2. Quelle mit roten Punkten in obere
+            axs[0,0].plot(beam_2nd[:,0], beam_2nd[:,1], '.', ms=2, color='r')
+            axs[0,1].plot(beam_2nd[:,0], beam_2nd[:,2], '.', ms=2, color='r')
+            axs[1,0].plot(algo_2nd[:,0], algo_2nd[:,1], '.', ms=2, color='r')
+            axs[1,1].plot(algo_2nd[:,0], algo_2nd[:,2], '.', ms=2, color='r')
         if JUST_1SOURCE_FRAMES:
-            axs[2,0].plot(ideal_2SF[:,0], ideal_2SF[:,1], '.', ms=2, c='r')
-            axs[2,1].plot(ideal_2SF[:,0], ideal_2SF[:,2], '.', ms=2, c='r')
+            axs[4,0].plot(ideal_2SF[:,0], ideal_2SF[:,1], '.', ms=2, c='r')
+            axs[4,1].plot(ideal_2SF[:,0], ideal_2SF[:,2], '.', ms=2, c='r')
         
         for index, filterfault in enumerate(filterideal[:,0]):
             if bool(filterideal[index,3]):
                 axs[1,0].axvspan(filterfault, filterfault+1, color='r', alpha=0.5, ec=None)
                 axs[1,1].axvspan(filterfault, filterfault+1, color='r', alpha=0.5, ec=None)
-                axs[3,0].axvspan(filterfault, filterfault+1, color='r', alpha=0.5, ec=None)
-                axs[3,1].axvspan(filterfault, filterfault+1, color='r', alpha=0.5, ec=None)
+                axs[4,0].axvspan(filterfault, filterfault+1, color='r', alpha=0.5, ec=None)
+                axs[4,1].axvspan(filterfault, filterfault+1, color='r', alpha=0.5, ec=None)
         
-        for x in arange(4):
+        for x in arange(5):
             axs[x,0].set_ylim(-190,190)
             axs[x,0].set_xlim(-20,620)
-        for x in arange(4):
+        for x in arange(5):
             axs[x,1].set_ylim(-100,100)
             axs[x,1].set_xlim(-20,620)
-        plt.subplots_adjust(left=0.05, right=0.96, hspace=0.5)
+        plt.subplots_adjust(left=0.05, right=0.96, hspace=0.7)
         fig.suptitle(file.name)
         plt.show()
-        
-#%% LOCALIZATION ERROR (°)
-        
-        ideal_AziEle_rad = filterideal[:,1:3] * pi/180
-        knn_AziEle_rad = knn[:,1:3] * pi/180
 
-        knn_dist = sin(ideal_AziEle_rad[:,1]) * sin(knn_AziEle_rad[:,1]) + cos(ideal_AziEle_rad[:,1]) * cos(knn_AziEle_rad[:,1]) * cos(abs(ideal_AziEle_rad[:,0] - knn_AziEle_rad[:,0]))
-        # Making sure the dist values are in -1 to 1 range, else np.arccos kills the job
-        knn_dist = clip(knn_dist, -1, 1)
-        knn_dist = arccos(knn_dist) * 180 / pi
+#%% LOCALIZATION ERROR (°)
+
+        filterideal[:,1:3] = filterideal[:,1:3] * pi/180
+        knn[:,1:3] = knn[:,1:3] * pi/180
+
+        # knn_dist = sin(filterideal[:,2]) * sin(knn[:,2]) + cos(filterideal[:,2]) * cos(knn[:,2]) * cos(abs(filterideal[:,1] - knn[:,1]))
+        # TODO: Zeilen vertauschen, falls Frames verdreht bzw. knn_dist dann kleiner
+        # Hier würde Kopplung Klassifizierung <-> Lokalisierung genutzt werden
+        # Jetzt einfach kleineren Abstand nehmen
+        
+        knn_dist = smallest_LocError(filterideal, knn)
         knn_dist = mean(knn_dist)
         
         if twoSrc_frames_exist:
             # beam_AziEle_rad = beam und beam_2nd zusammengefasst
-            beam_AziEle_rad = zeros((len(beam)+len(beam_2nd),2))
+            # bzw. algo_AziEle_rad = ...
+            algo_rad = zeros((len(beam)+len(beam_2nd),3))
+            beam_rad = zeros((len(beam)+len(beam_2nd),3))
             ind_b2 = 0
             for ind_b1, fr in enumerate(beam[:,0]):
-                beam_AziEle_rad[ind_b1 + ind_b2] = beam[ind_b1,1:3] * pi/180
+                beam_rad[ind_b1 + ind_b2] = beam[ind_b1,:]
+                algo_rad[ind_b1 + ind_b2] = algo[ind_b1,:]
                 if ind_b2 == len(beam_2nd):
                     continue
                 elif beam_2nd[ind_b2,0] == fr:
-                    beam_AziEle_rad[ind_b1 + ind_b2 +1] = beam_2nd[ind_b2,1:3] * pi/180
+                    beam_rad[ind_b1 + ind_b2 +1] = beam_2nd[ind_b2,:]
+                    algo_rad[ind_b1 + ind_b2 +1] = algo_2nd[ind_b2,:]
                     ind_b2 += 1
         else:
-            beam_AziEle_rad = beam[:,1:3] * pi/180
-        beam_dist = sin(ideal_AziEle_rad[:,1]) * sin(beam_AziEle_rad[:,1]) + cos(ideal_AziEle_rad[:,1]) * cos(beam_AziEle_rad[:,1]) * cos(abs(ideal_AziEle_rad[:,0] - beam_AziEle_rad[:,0]))
-        # Making sure the dist values are in -1 to 1 range, else np.arccos kills the job
-        beam_dist = clip(beam_dist, -1, 1)
-        beam_dist = arccos(beam_dist) * 180 / pi
+            beam_rad = beam[:,:]
+            algo_rad = algo[:,:]
+        
+        beam_rad[:,1:3] = beam_rad[:,1:3] * pi/180
+        algo_rad[:,1:3] = algo_rad[:,1:3] * pi/180
+        
+        beam_dist = smallest_LocError(filterideal, beam_rad)
         beam_dist = mean(beam_dist)
+
+        algo_dist = smallest_LocError(filterideal, algo_rad)
+        algo_dist = mean(algo_dist)
         
-        print("  Localization Error (with ANN): ", knn_dist)
-        print("  Localization Error (no ANN): ", beam_dist)
+        print("  Localization Error")
+        print("    Just glob Max: ", beam_dist)
+        print("    Algorithm:     ", algo_dist)
+        print("    With ANN:      ", knn_dist)
         
-        knn_dist_list.append(knn_dist)
         beam_dist_list.append(beam_dist)
+        algo_dist_list.append(algo_dist)
+        knn_dist_list.append(knn_dist)
     
     print('##########################')
     print('')
-    print("Overall LocErr (with ANN): ", asarray(knn_dist_list).sum()/len(knn_dist_list))
-    print("Overall LocErr (no ANN): ", asarray(beam_dist_list).sum()/len(beam_dist_list))
+    print("Overall Localization Error")
+    print("    Just glob Max: ", asarray(beam_dist_list).sum()/len(beam_dist_list))
+    print("    Algorithm:     ", asarray(algo_dist_list).sum()/len(algo_dist_list))
+    print("    With ANN:      ", asarray(knn_dist_list).sum()/len(knn_dist_list))
 
 
-        # dif_knn_Azi = (knn_AziEle_rad[:,0] - ideal_AziEle_rad[:,0]) * 180/pi
-        # dif_knn_Ele = (knn_AziEle_rad[:,1] - ideal_AziEle_rad[:,1]) * 180/pi
-        # azi_error_knn = mean(sqrt(dif_knn_Azi[:] ** 2))
-        # ele_error_knn = mean(sqrt(dif_knn_Ele[:] ** 2))
-        # loc_error_knn = mean(sqrt(dif_knn_Azi[:] ** 2 + dif_knn_Ele[:] ** 2))
 
-        # dif_beam_Azi = (beam_AziEle_rad[:,0] - ideal_AziEle_rad[:,0]) * 180/pi
-        # dif_beam_Ele = (beam_AziEle_rad[:,1] - ideal_AziEle_rad[:,1]) * 180/pi
-        # azi_error_beam = mean(sqrt(dif_beam_Azi[:] ** 2))
-        # ele_error_beam = mean(sqrt(dif_beam_Ele[:] ** 2))
-        # loc_error_beam = mean(sqrt(dif_beam_Azi[:] ** 2 + dif_beam_Ele[:] ** 2))
-
-        

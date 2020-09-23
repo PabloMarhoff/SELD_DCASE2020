@@ -43,13 +43,19 @@ with scandir(SINGLE_FILE_TEST) as files:
         if not(TRAINING):
             with open(PLOTFILES+_name+'_frames.npy', mode='wb') as npyfile:
                 save(npyfile, labeldata[:,0])
-        # fbeamplot enthält alle durch Beamforming bestimmten Richtungen
+
+        # fbeamplot enthält alle durchs Maximum vom Beamforming bestimmten Richtungen
         fbeamplot = []
         fbeamplot_2ndSrc = []
+        # algoplot enthält alle durch händischen Algo bestimmten Richtungen
+        algoplot = []
+        algoplot_2ndSrc = []
         feature_matrix_pipeline = fbeamextraction(mg, rg, ts, be,
                                                   firstframe, lastframe,
                                                   labeldata, _name,
-                                                  fbeamplot, fbeamplot_2ndSrc)
+                                                  fbeamplot, fbeamplot_2ndSrc,
+                                                  algoplot, algoplot_2ndSrc)
+
         if TRAINING:
             write_TFRecord(FEATURE_DIR+_name+".tfrecords",feature_matrix_pipeline,1) # write file (logs every written sample)
         if not(TRAINING):
@@ -57,8 +63,10 @@ with scandir(SINGLE_FILE_TEST) as files:
         
         if not(DEBUG) and not(TRAINING):
             save(PLOTFILES+_name+"_beam.npy", fbeamplot)
+            save(PLOTFILES+_name+"_algo.npy", algoplot)
             if fbeamplot_2ndSrc != []:
                 save(PLOTFILES+_name+"_beam2nd.npy", fbeamplot_2ndSrc)
+                save(PLOTFILES+_name+"_algo2nd.npy", algoplot_2ndSrc)
         if path.exists(h5cache.cache_dir+"/"+_name+"_cache.h5"):
             remove(h5cache.cache_dir+"/"+_name+"_cache.h5")
     t2 = time.time()
